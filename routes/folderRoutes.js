@@ -8,4 +8,6 @@ router.post("/create", folderController.createFolder);
 
 router.get("/", folderController.getFolders);
 
+router.get("", folderController.getFolders);
+
 module.exports = router;

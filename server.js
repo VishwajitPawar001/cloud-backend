@@ -26,6 +26,11 @@ app.use("/api/files", fileRoutes);
 app.use("/api/folders", folderRoutes);
 app.use("/api/share", shareRoutes);
 
+app.use("/api/folders", (req, res, next) => {
+  console.log("Folders route hit:", req.method, req.url);
+  next();
+});
+
 app.get("/", (req, res) => {
   res.send("Cloud Storage API Running");
 });
