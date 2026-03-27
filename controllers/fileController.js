@@ -5,41 +5,58 @@ const path = require("path");
 // 📤 Upload File
 exports.uploadFile = async (req, res) => {
   try {
+    console.log("BODY:", req.body);
+    console.log("FILE:", req.file);
 
-    if (!req.file) {
+    const file = req.file;
+    const { folder_id, owner_id } = req.body;
+
+    if (!file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    const folder_id = req.body.folder_id || "1"; // ✅ default root
-    const owner_id = req.body.owner_id || "1";
+    const fileName = Date.now() + "_" + file.originalname;
 
-    const filename = req.file.filename;
-
-    const { data, error } = await supabase
+    const { data, error } = await supabase.storage
       .from("files")
-      .insert([
-        {
-          name: filename,
-          folder_id,
-          owner_id,
-          is_deleted: false
-        }
-      ])
-      .select();
+      .upload(fileName, file.buffer, {
+        contentType: file.mimetype,
+      });
 
     if (error) {
       return res.status(400).json({ error: error.message });
     }
 
+    const { data: publicUrlData } = supabase.storage
+      .from("files")
+      .getPublicUrl(fileName);
+
+    const publicUrl = publicUrlData.publicUrl;
+
+    const { data: fileData, error: dbError } = await supabase
+      .from("files")
+      .insert([
+        {
+          name: file.originalname,
+          path: fileName,
+          url: publicUrl,
+          folder_id: folder_id,
+          owner_id: owner_id,
+        },
+      ]);
+
+    if (dbError) {
+      return res.status(400).json({ error: dbError.message });
+    }
+
     res.json({
       message: "File uploaded successfully",
-      file: data[0]
+      file: fileData,
     });
 
   } catch (error) {
-    res.status(500).json({
-      error: error.message
-    });
+    console.error("UPLOAD ERROR:", error);
+    res.status(500).json({ error: error.message });
   }
 };
 
