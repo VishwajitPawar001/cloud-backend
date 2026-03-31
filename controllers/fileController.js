@@ -1,15 +1,11 @@
 const supabase = require("../config/supabase");
-const fs = require("fs");
-const path = require("path");
 
 // 📤 Upload File
 exports.uploadFile = async (req, res) => {
   try {
-    console.log("BODY:", req.body);
-    console.log("FILE:", req.file);
-
     const file = req.file;
-    const { folder_id, owner_id } = req.body;
+    const { folder_id } = req.body;
+    const owner_id = req.user.id; // from JWT
 
     if (!file) {
       return res.status(400).json({ error: "No file uploaded" });
@@ -17,31 +13,35 @@ exports.uploadFile = async (req, res) => {
 
     const fileName = Date.now() + "_" + file.originalname;
 
-    const { data, error } = await supabase.storage
+    // Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
       .from("files")
       .upload(fileName, file.buffer, {
         contentType: file.mimetype,
       });
 
-    if (error) {
-      return res.status(400).json({ error: error.message });
+    if (uploadError) {
+      return res.status(400).json({ error: uploadError.message });
     }
 
+    // Get public URL
     const { data: publicUrlData } = supabase.storage
       .from("files")
       .getPublicUrl(fileName);
 
     const publicUrl = publicUrlData.publicUrl;
 
-    const { data: fileData, error: dbError } = await supabase
+    // Save file record in DB
+    const { data, error: dbError } = await supabase
       .from("files")
       .insert([
         {
           name: file.originalname,
           path: fileName,
           url: publicUrl,
-          folder_id: folder_id,
+          folder_id: folder_id || 1,
           owner_id: owner_id,
+          is_deleted: false,
         },
       ]);
 
@@ -51,7 +51,7 @@ exports.uploadFile = async (req, res) => {
 
     res.json({
       message: "File uploaded successfully",
-      file: fileData,
+      file: data,
     });
 
   } catch (error) {
@@ -60,53 +60,55 @@ exports.uploadFile = async (req, res) => {
   }
 };
 
-// 📄 Get All Files
+// 📄 Get All Files (Only User Files)
 exports.getFiles = async (req, res) => {
   try {
+    const userId = req.user.id;
 
     const { data, error } = await supabase
       .from("files")
       .select("*")
+      .eq("owner_id", userId)
+      .eq("is_deleted", false)
       .order("id", { ascending: false });
 
     if (error) {
       return res.status(400).json({ error: error.message });
     }
 
-    res.json({
-      files: data || []
-    });
+    res.json({ files: data || [] });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// 📥 Download File
-exports.downloadFile = (req, res) => {
+// 🗑️ Get Trash Files
+exports.getTrashFiles = async (req, res) => {
+  try {
+    const userId = req.user.id;
 
-  const filename = req.params.filename;
-  const filePath = path.join(__dirname, "../uploads", filename);
+    const { data, error } = await supabase
+      .from("files")
+      .select("*")
+      .eq("owner_id", userId)
+      .eq("is_deleted", true)
+      .order("id", { ascending: false });
 
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({
-      message: "File not found"
-    });
-  }
-
-  res.download(filePath, filename, (err) => {
-    if (err) {
-      res.status(500).json({
-        message: "Error downloading file"
-      });
+    if (error) {
+      return res.status(400).json({ error: error.message });
     }
-  });
+
+    res.json({ files: data || [] });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
 
 // 🗑️ Soft Delete (Move to Trash)
 exports.deleteFile = async (req, res) => {
   try {
-
     const fileId = req.params.id;
 
     const { error } = await supabase
@@ -118,27 +120,22 @@ exports.deleteFile = async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
-    res.json({
-      message: "File moved to trash"
-    });
+    res.json({ message: "File moved to trash" });
 
   } catch (error) {
-    res.status(500).json({
-      error: error.message
-    });
+    res.status(500).json({ error: error.message });
   }
 };
 
 // 🔁 Restore File
 exports.restoreFile = async (req, res) => {
   try {
-
-    const { id } = req.params;
+    const fileId = req.params.id;
 
     const { error } = await supabase
       .from("files")
       .update({ is_deleted: false })
-      .eq("id", id);
+      .eq("id", fileId);
 
     if (error) {
       return res.status(400).json({ error: error.message });
@@ -151,42 +148,37 @@ exports.restoreFile = async (req, res) => {
   }
 };
 
-// ❌ Permanent Delete (DB + File System)
+// ❌ Permanent Delete (DB + Supabase Storage)
 exports.permanentDeleteFile = async (req, res) => {
   try {
+    const fileId = req.params.id;
 
-    const { id } = req.params;
-
-    // 1️⃣ Get file name first
+    // Get file path first
     const { data, error: fetchError } = await supabase
       .from("files")
-      .select("name")
-      .eq("id", id)
+      .select("path")
+      .eq("id", fileId)
       .single();
 
     if (fetchError) {
       return res.status(400).json({ error: fetchError.message });
     }
 
-    const filename = data?.name;
+    const filePath = data.path;
 
-    // 2️⃣ Delete from DB
+    // Delete from storage
+    if (filePath) {
+      await supabase.storage.from("files").remove([filePath]);
+    }
+
+    // Delete from DB
     const { error } = await supabase
       .from("files")
       .delete()
-      .eq("id", id);
+      .eq("id", fileId);
 
     if (error) {
       return res.status(400).json({ error: error.message });
-    }
-
-    // 3️⃣ Delete from local storage
-    if (filename) {
-      const filePath = path.join(__dirname, "../uploads", filename);
-
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
     }
 
     res.json({ message: "File permanently deleted" });

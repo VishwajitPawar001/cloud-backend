@@ -1,26 +1,26 @@
 const express = require("express");
-
 const router = express.Router();
 
 const upload = require("../middleware/uploadMiddleware");
+const auth = require("../middleware/authMiddleware");
 const fileController = require("../controllers/fileController");
 
 // 📤 Upload file
-router.post("/upload", upload.single("file"), fileController.uploadFile);
+router.post("/upload", auth, upload.single("file"), fileController.uploadFile);
 
 // 📄 Get all files
-router.get("/", fileController.getFiles);
+router.get("/", auth, fileController.getFiles);
 
-// 📥 Download file
-router.get("/download/:filename", fileController.downloadFile);
+// 🗑️ Get trash files
+router.get("/trash", auth, fileController.getTrashFiles);
 
 // 🗑️ Soft delete (move to trash)
-router.delete("/:id", fileController.deleteFile);
+router.delete("/:id", auth, fileController.deleteFile);
 
 // 🔁 Restore file
-router.put("/restore/:id", fileController.restoreFile);
+router.put("/restore/:id", auth, fileController.restoreFile);
 
 // ❌ Permanent delete
-router.delete("/permanent/:id", fileController.permanentDeleteFile);
+router.delete("/permanent/:id", auth, fileController.permanentDeleteFile);
 
 module.exports = router;
