@@ -255,34 +255,67 @@ exports.shareFile = async (req, res) => {
 };
 
 
-// 📥 Get Files Shared With Me
 exports.getSharedFiles = async (req, res) => {
   try {
     const userEmail = req.user.email;
 
-    const { data, error } = await supabase
+    // Step 1: Get shared file IDs
+    const { data: shares, error: shareError } = await supabase
       .from("shares")
-      .select(`
-        file_id,
-        files (
-          id,
-          name,
-          url,
-          folder_id,
-          owner_id,
-          is_deleted
-        )
-      `)
+      .select("file_id")
       .eq("user_email", userEmail);
+
+    if (shareError) {
+      return res.status(400).json({ error: shareError.message });
+    }
+
+    const fileIds = shares.map(item => item.file_id);
+
+    if (fileIds.length === 0) {
+      return res.json({ files: [] });
+    }
+
+    // Step 2: Get file details
+    const { data: files, error: fileError } = await supabase
+      .from("files")
+      .select("*")
+      .in("id", fileIds)
+      .eq("is_deleted", false);
+
+    if (fileError) {
+      return res.status(400).json({ error: fileError.message });
+    }
+
+    res.json({ files: files || [] });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// 🔗 Generate Public Share Link
+exports.generateShareLink = async (req, res) => {
+  try {
+    const fileId = req.params.id;
+    const crypto = require("crypto");
+
+    const token = crypto.randomBytes(16).toString("hex");
+
+    const { error } = await supabase
+      .from("files")
+      .update({
+        share_token: token,
+        is_public: true,
+      })
+      .eq("id", fileId);
 
     if (error) {
       return res.status(400).json({ error: error.message });
     }
 
-    // Extract file objects
-    const sharedFiles = data.map(item => item.files);
+    const shareLink = `https://cloud-frontend-one.vercel.app//share/${token}`;
 
-    res.json({ files: sharedFiles });
+    res.json({ link: shareLink });
 
   } catch (error) {
     res.status(500).json({ error: error.message });

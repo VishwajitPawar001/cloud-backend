@@ -23,6 +23,9 @@ router.post("/share", auth, fileController.shareFile);
 // 📥 Files shared with me
 router.get("/shared", auth, fileController.getSharedFiles);
 
+router.get("/share-link/:id", auth, fileController.generateShareLink);
+router.get("/public/:token", fileController.getPublicFile);
+
 // 🔁 Restore file
 router.put("/restore/:id", auth, fileController.restoreFile);
 
