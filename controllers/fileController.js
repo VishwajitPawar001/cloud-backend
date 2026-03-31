@@ -321,3 +321,26 @@ exports.generateShareLink = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// 🌍 Get Public Shared File
+exports.getPublicFile = async (req, res) => {
+  try {
+    const token = req.params.token;
+
+    const { data, error } = await supabase
+      .from("files")
+      .select("*")
+      .eq("share_token", token)
+      .eq("is_public", true)
+      .single();
+
+    if (error || !data) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    res.json({ file: data });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

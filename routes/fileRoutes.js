@@ -5,34 +5,35 @@ const upload = require("../middleware/uploadMiddleware");
 const auth = require("../middleware/authMiddleware");
 const fileController = require("../controllers/fileController");
 
-// 📤 Upload file
+// Upload
 router.post("/upload", auth, upload.single("file"), fileController.uploadFile);
 
-// 📄 Get all files (root)
+// Root files
 router.get("/", auth, fileController.getFiles);
 
-// 📁 Get files by folder
+// Files by folder
 router.get("/folder/:folderId", auth, fileController.getFilesByFolder);
 
-// 🗑️ Get trash files
+// Trash
 router.get("/trash", auth, fileController.getTrashFiles);
 
-// 🔗 Share file
-router.post("/share", auth, fileController.shareFile);
+// Soft delete
+router.delete("/:id", auth, fileController.deleteFile);
 
-// 📥 Files shared with me
-router.get("/shared", auth, fileController.getSharedFiles);
-
-router.get("/share-link/:id", auth, fileController.generateShareLink);
-router.get("/public/:token", fileController.getPublicFile);
-
-// 🔁 Restore file
+// Restore
 router.put("/restore/:id", auth, fileController.restoreFile);
 
-// ❌ Permanent delete
+// Permanent delete
 router.delete("/permanent/:id", auth, fileController.permanentDeleteFile);
 
-// 🗑️ Soft delete (move to trash) → KEEP LAST
-router.delete("/:id", auth, fileController.deleteFile);
+// Internal share
+router.post("/share", auth, fileController.shareFile);
+router.get("/shared", auth, fileController.getSharedFiles);
+
+// Public share link
+router.get("/share-link/:id", auth, fileController.generateShareLink);
+
+// Public access
+router.get("/public/:token", fileController.getPublicFile);
 
 module.exports = router;
