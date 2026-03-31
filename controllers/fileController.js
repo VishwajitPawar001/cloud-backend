@@ -223,3 +223,68 @@ exports.permanentDeleteFile = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// 🔗 Share File
+exports.shareFile = async (req, res) => {
+  try {
+    const { file_id, email, permission } = req.body;
+
+    if (!file_id || !email) {
+      return res.status(400).json({ error: "File ID and email required" });
+    }
+
+    const { error } = await supabase
+      .from("shares")
+      .insert([
+        {
+          file_id: file_id,
+          user_email: email,
+          permission: permission || "view",
+        },
+      ]);
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json({ message: "File shared successfully" });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+
+// 📥 Get Files Shared With Me
+exports.getSharedFiles = async (req, res) => {
+  try {
+    const userEmail = req.user.email;
+
+    const { data, error } = await supabase
+      .from("shares")
+      .select(`
+        file_id,
+        files (
+          id,
+          name,
+          url,
+          folder_id,
+          owner_id,
+          is_deleted
+        )
+      `)
+      .eq("user_email", userEmail);
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    // Extract file objects
+    const sharedFiles = data.map(item => item.files);
+
+    res.json({ files: sharedFiles });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
