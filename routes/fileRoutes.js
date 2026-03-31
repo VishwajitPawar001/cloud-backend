@@ -5,6 +5,8 @@ const upload = require("../middleware/uploadMiddleware");
 const auth = require("../middleware/authMiddleware");
 const fileController = require("../controllers/fileController");
 
+router.get("/folder/:folderId", auth, fileController.getFilesByFolder);
+
 // 📤 Upload file
 router.post("/upload", auth, upload.single("file"), fileController.uploadFile);
 
