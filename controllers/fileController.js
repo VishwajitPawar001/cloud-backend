@@ -4,7 +4,7 @@ const supabase = require("../config/supabase");
 exports.uploadFile = async (req, res) => {
   try {
     const file = req.file;
-    const { folder_id } = req.body;
+    const folder_id = parseInt(req.body.folder_id) || 1;
     const owner_id = req.user.id;
 
     if (!file) {
@@ -66,7 +66,7 @@ exports.uploadFile = async (req, res) => {
   }
 };
 
-// 📄 Get All Files (Root)
+// 📄 Get Root Files Only
 exports.getFiles = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -75,6 +75,7 @@ exports.getFiles = async (req, res) => {
       .from("files")
       .select("*")
       .eq("owner_id", userId)
+      .eq("folder_id", 1)   // ✅ ROOT ONLY
       .eq("is_deleted", false)
       .order("id", { ascending: false });
 
